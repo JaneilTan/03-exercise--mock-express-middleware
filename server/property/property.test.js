@@ -8,6 +8,21 @@ const {
   checkScopes,
 } = require("../middleware/authorizationMiddleware");
 // TODO: mock the authorizationMiddleware module.
+jest.mock("../middleware/authorizationMiddleware", () => {
+  return {
+    checkJwt: jest.fn((req, res, next) => {
+      try {
+        throw new Error("Unauthorized");
+      } catch (error) {
+        error.status = 401;
+        next(error);
+      }
+    }),
+    checkScopes: jest.fn((requiredScopes) => {
+      throw new Error("Insufficient permissions");
+    }),
+  };
+});
 
 jestOpenAPI(path.join(__dirname, "../apispec.yaml"));
 
@@ -25,6 +40,12 @@ describe("GIVEN that the POST /property route exist", () => {
       // TODO: mock the checkJwt implementation.
       // Throw an Error object, catch it and pass it to the next middleware
       // Don't forget to set the error status
+      try {
+        throw new Error("Unauthorized");
+      } catch (error) {
+        error.status = 401;
+        next(error)
+      }
     });
 
     const response = await request(app)
@@ -32,6 +53,7 @@ describe("GIVEN that the POST /property route exist", () => {
       .set("Accept", "application/json");
 
     expect(response.status).toBe(401);
+    expect(response.body.error).toBe("Unauthorized");
     expect(response).toSatisfyApiSpec();
   });
 
@@ -41,6 +63,9 @@ describe("GIVEN that the POST /property route exist", () => {
 
     // TODO: mock the checkScopes implementation.
     // The user does not have the right permission.
+    checkScopes.mockImplementation((requiredScopes) => {
+      throw new Error("Insufficient permissions");
+    });
 
     const response = await request(app)
       .post("/api/properties")
